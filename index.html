@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>ประเมินมือนักแบด — BH Badminton Series 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCKvtH0n1r6rj33x1pk7ePZAYFDTv34_uU",
+    authDomain: "bh-badminton-series-2026.firebaseapp.com",
+    databaseURL: "https://bh-badminton-series-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "bh-badminton-series-2026",
+    storageBucket: "bh-badminton-series-2026.firebasestorage.app",
+    messagingSenderId: "33445496353",
+    appId: "1:33445496353:web:60aa95d847e88bb5eec560"
+  };
+  firebase.initializeApp(firebaseConfig);
+</script>
+<style>
+  :root{
+    --court: #17422b;
+    --court-line: #eef0e4;
+    --chalk: #f6f4ec;
+    --ink: #14251c;
+    --ink-soft: #4a5c50;
+    --pass: #2f8f5b;
+    --pass-bg: #e4f3e9;
+    --fail: #b5482f;
+    --fail-bg: #fbe8e2;
+    --pending: #c99a2e;
+    --pending-bg: #faf1dc;
+    --card: #ffffff;
+    --line: #dfe3d8;
+    --shadow: 0 1px 2px rgba(20,37,28,.06), 0 4px 14px rgba(20,37,28,.06);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background:var(--chalk);
+    color:var(--ink);
+    min-height:100vh;
+    padding-bottom:60px;
+  }
+  header{
+    background:
+      repeating-linear-gradient(90deg, transparent 0 38px, rgba(246,244,236,.08) 38px 40px),
+      linear-gradient(160deg, var(--court), #0f2e1c 85%);
+    color:var(--court-line);
+    padding:22px 18px 20px;
+    position:relative;
+    overflow:hidden;
+  }
+  header::after{
+    content:"";
+    position:absolute; left:-10%; right:-10%; bottom:8px; height:2px;
+    background:rgba(246,244,236,.35);
+  }
+  .eyebrow{
+    font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:#bcd7c4; font-weight:700; margin:0 0 6px;
+  }
+  h1{ margin:0; font-size:22px; font-weight:800; letter-spacing:-.01em; }
+  .sub{ margin:4px 0 0; font-size:13px; color:#c9dbcd; }
+  .whoami{
+    margin-top:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    background:rgba(246,244,236,.1); border:1px solid rgba(246,244,236,.22);
+    border-radius:10px; padding:9px 12px; font-size:13px;
+  }
+  .whoami b{ color:#fff }
+  .whoami button{
+    margin-left:auto; background:none; border:1px solid rgba(246,244,236,.4);
+    color:var(--court-line); font-size:11px; padding:4px 9px; border-radius:7px;
+    cursor:pointer;
+  }
+  .picker{ width:100%; display:flex; flex-direction:column; gap:8px; }
+  .picker-label{ font-size:12.5px; color:#c9dbcd; }
+  .picker-row{ display:flex; gap:6px; flex-wrap:wrap; }
+  .picker-row button{
+    background:#fff; border:1px solid transparent; color:var(--ink);
+    font-size:13px; font-weight:700; padding:8px 12px; border-radius:8px; cursor:pointer;
+  }
+  .picker-custom{ display:flex; gap:6px; }
+  .picker-custom input{ flex:1; font-size:14px; padding:8px 10px; border-radius:8px; border:none; }
+  .picker-custom button{
+    background:#fff; color:var(--court); font-weight:800; border:none; border-radius:8px;
+    padding:8px 14px; cursor:pointer; font-size:13px;
+  }
+
+  main{ max-width:640px; margin:0 auto; padding:16px; }
+
+  .panel{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:14px; margin-bottom:14px; box-shadow:var(--shadow);
+  }
+  .panel h2{
+    font-size:13px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--ink-soft); margin:0 0 10px; font-weight:800;
+  }
+  .panel .hint{ font-size:12px; color:#8a9488; margin:8px 0 0; }
+
+  .row{ display:flex; gap:8px; flex-wrap:wrap; }
+  input[type=text], select{
+    font-size:15px; padding:10px 11px; border-radius:9px;
+    border:1px solid var(--line); background:#fbfbf8; color:var(--ink);
+    flex:1 1 120px;
+  }
+  input[type=text]:focus, select:focus{ outline:2px solid var(--court); outline-offset:1px; }
+  button.primary{
+    background:var(--court); color:#fff; border:none; border-radius:9px;
+    padding:10px 16px; font-size:14px; font-weight:700; cursor:pointer;
+  }
+  button.primary:active{ transform:translateY(1px); }
+  button.ghost{
+    background:none; border:1px solid var(--line); color:var(--ink-soft);
+    border-radius:9px; padding:8px 12px; font-size:13px; cursor:pointer;
+  }
+
+  .threshold-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13.5px; }
+  .threshold-row input{ width:56px; text-align:center; flex:none; }
+
+  .levels-nav{ display:flex; gap:6px; overflow-x:auto; margin-bottom:12px; padding-bottom:2px; }
+  .levels-nav button{
+    flex:0 0 auto; padding:7px 14px; border-radius:999px; border:1px solid var(--line);
+    background:#fff; font-size:13px; font-weight:700; color:var(--ink-soft); cursor:pointer;
+  }
+  .levels-nav button.active{ background:var(--court); color:#fff; border-color:var(--court); }
+
+  .player{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:13px 14px; margin-bottom:10px; box-shadow:var(--shadow);
+  }
+  .player-top{ display:flex; align-items:center; gap:10px; }
+  .player-name{ font-size:15.5px; font-weight:800; flex:1; line-height:1.35; }
+  .level-badge{
+    font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px;
+    background:#eef2ea; color:var(--ink-soft); border:1px solid var(--line);
+    white-space:nowrap;
+  }
+  /* level colour coding */
+  .player{ border-left:5px solid var(--line); }
+  .player.lvl-BG{ border-left-color:#c0392b; }
+  .player.lvl-BG .level-badge{ background:#fbe1de; color:#a3271a; border-color:#f0b8b1; }
+  .player.lvl-BGM{ border-left-color:#2f8f5b; }
+  .player.lvl-BGM .level-badge{ background:#e0f2e6; color:#20693f; border-color:#a9dcbc; }
+  .player.lvl-SN{ border-left-color:#c99a2e; }
+  .player.lvl-SN .level-badge{ background:#faf1dc; color:#8f6a15; border-color:#eed49b; }
+
+  .del-btn, .edit-btn{ background:none; border:none; color:#b3b8ac; font-size:16px; cursor:pointer; padding:2px 5px; line-height:1; }
+  .team-label{ font-size:11.5px; font-weight:700; color:var(--ink-soft); margin-bottom:2px; }
+  .edit-form{ display:flex; flex-direction:column; gap:6px; margin-top:6px; }
+  .edit-form input, .edit-form select{ font-size:14px; padding:8px 9px; }
+  .edit-actions{ display:flex; gap:8px; margin-top:2px; }
+  .edit-actions button{ flex:1; padding:8px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; }
+  .edit-actions .save-btn{ background:var(--court); color:#fff; border:none; }
+  .edit-actions .cancel-btn{ background:none; border:1px solid var(--line); color:var(--ink-soft); }
+
+  .verdict{
+    margin-top:8px; font-size:12.5px; font-weight:800; padding:6px 10px;
+    border-radius:8px; display:inline-block;
+  }
+  .verdict.pass{ background:var(--pass-bg); color:var(--pass); }
+  .verdict.fail{ background:var(--fail-bg); color:var(--fail); }
+  .verdict.pending{ background:var(--pending-bg); color:var(--pending); }
+
+  .judges{ display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .judge-chip{
+    flex:1 1 auto; min-width:64px; text-align:center; border-radius:9px;
+    border:1px solid var(--line); padding:6px 4px; font-size:11px;
+  }
+  .judge-chip .jname{ font-weight:700; color:var(--ink-soft); display:block; margin-bottom:3px; font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .judge-chip .jstate{ font-weight:800; font-size:12px; }
+  .judge-chip.pass{ background:var(--pass-bg); }
+  .judge-chip.pass .jstate{ color:var(--pass); }
+  .judge-chip.fail{ background:var(--fail-bg); }
+  .judge-chip.fail .jstate{ color:var(--fail); }
+  .judge-chip.pending{ background:#f4f4f0; }
+  .judge-chip.pending .jstate{ color:#9aa196; }
+  .judge-chip.me{ box-shadow: inset 0 0 0 2px var(--court); }
+
+  .mybtns{ display:flex; gap:8px; margin-top:11px; }
+  .mybtns button{
+    flex:1; padding:11px 6px; border-radius:9px; border:1px solid var(--line);
+    font-size:13.5px; font-weight:800; cursor:pointer; background:#fbfbf8; color:var(--ink-soft);
+  }
+  .mybtns button.pass.on{ background:var(--pass); color:#fff; border-color:var(--pass); }
+  .mybtns button.fail.on{ background:var(--fail); color:#fff; border-color:var(--fail); }
+
+  .empty{ text-align:center; padding:36px 16px; color:var(--ink-soft); font-size:13.5px; }
+  .status-line{ font-size:11.5px; color:#9aa196; text-align:center; margin-top:10px; }
+  .import-summary{ font-size:12.5px; margin-top:8px; padding:8px 10px; border-radius:8px; background:#eef2ea; color:var(--ink-soft); }
+  .file-label{
+    display:inline-block; padding:10px 14px; border-radius:9px; border:1px dashed var(--line);
+    background:#fbfbf8; font-size:13.5px; color:var(--ink-soft); cursor:pointer; text-align:center; width:100%;
+  }
+  .manage-judges{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .manage-judges .jtag{ font-size:11.5px; background:#eef2ea; border:1px solid var(--line); border-radius:999px; padding:4px 10px; color:var(--ink-soft); }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">BH Badminton Series 2026</p>
+  <h1>ประเมินมือนักแบด</h1>
+  <p class="sub">โหวตร่วมกัน — เห็นผลแบบเรียลไทม์ พร้อมสำรองข้อมูลถาวร</p>
+  <div class="whoami" id="whoami">
+    <span>กำลังโหลด…</span>
+  </div>
+</header>
+
+<main>
+
+  <div class="panel">
+    <h2>เกณฑ์ตัดสิน</h2>
+    <div class="threshold-row">
+      ได้เสียง "ผ่าน" ครบ
+      <input type="text" inputmode="numeric" id="thresholdNum" value="3">
+      เสียง = ผ่านทันที
+    </div>
+    <p class="hint">ใครโหวต "ไม่ผ่าน" ครบจำนวนเดียวกัน จะถือว่าไม่ผ่านทันทีเช่นกัน</p>
+  </div>
+
+  <div class="panel">
+    <h2>เพิ่มนักกีฬา (รายคู่)</h2>
+    <div class="row">
+      <input type="text" id="newTeam" placeholder="ชื่อทีม">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="newName1" placeholder="ชื่อคนที่ 1">
+      <input type="text" id="newName2" placeholder="ชื่อคนที่ 2">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <select id="newLevel">
+        <option value="BG-">BG-</option>
+        <option value="BG">BG</option>
+        <option value="S/N">S/N</option>
+      </select>
+      <button class="primary" id="addBtn">+ เพิ่มคู่นี้</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>นำเข้ารายชื่อจาก Excel</h2>
+    <label class="file-label" id="fileLabel">
+      เลือกไฟล์ .xlsx — คอลัมน์: ชื่อทีม / ชื่อนักกีฬาคนที่ 1 / คนที่ 2 / มือที่ลง
+      <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
+    </label>
+    <div class="import-summary" id="importSummary" style="display:none"></div>
+  </div>
+
+  <div class="panel">
+    <h2>รายชื่อกรรมการ</h2>
+    <div class="manage-judges" id="judgeTags"></div>
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="newJudgeName" placeholder="เพิ่มชื่อกรรมการ">
+      <button class="ghost" id="addJudgeBtn">+ เพิ่ม</button>
+    </div>
+  </div>
+
+  <div class="levels-nav" id="levelsNav"></div>
+
+  <div id="playerList"></div>
+
+  <p class="status-line" id="statusLine"></p>
+</main>
+
+<script>
+const DEFAULT_LEVELS = ["BG-","BG","S/N"];
+const DEFAULT_JUDGES = ["พี่ปอนด์","พี่โดม","พี่ปิงปอง","ฟอร์ด","ฟิวส์","ยูโร"];
+let myName = null;
+let players = [];
+let votes = {};
+let settings = { threshold: 3 };
+let judgeRoster = DEFAULT_JUDGES.slice();
+let activeLevel = "ALL";
+
+function $(id){ return document.getElementById(id); }
+
+// ---- Firebase Realtime Database backend ----
+// Shared data (players / votes / settings / judge roster) lives in Firebase
+// so all judges on separate devices see the same live state, with the
+// database itself acting as the persistent backup (same pattern as the
+// vending-tracker app).
+const db = firebase.database();
+async function fbSet(path, value){
+  try{ await db.ref(path).set(value); return true; }catch(e){ console.error(e); return false; }
+}
+function fbListen(path, cb){
+  db.ref(path).on('value', (snap)=>{ cb(snap.val()); });
+}
+
+// Personal data (which judge this device belongs to) stays local to the
+// browser — it's not shared, so plain localStorage is fine here.
+function localGet(key){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }catch(e){ return null; }
+}
+function localSet(key, value){
+  try{ localStorage.setItem(key, JSON.stringify(value)); }catch(e){}
+}
+
+function markUpdated(){
+  $('statusLine').textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH');
+}
+
+async function init(){
+  myName = localGet('bh_judge_name');
+  renderWhoAmI();
+
+  fbListen('players', (val)=>{ players = val || []; render(); markUpdated(); });
+  fbListen('votes', (val)=>{ votes = val || {}; render(); markUpdated(); });
+  fbListen('settings', (val)=>{ if(val) settings = val; render(); markUpdated(); });
+  fbListen('judgeRoster', (val)=>{
+    if(val && val.length){ judgeRoster = val; }
+    else{ fbSet('judgeRoster', judgeRoster); }
+    // roster changed — refresh the picker too, in case it's showing
+    renderWhoAmI();
+    render(); markUpdated();
+  });
+
+  render();
+}
+
+// Judge picker lives inline in the header bar — no overlay, so it can
+// never get stuck behind a stacking/click bug the way a fixed modal can.
+function renderWhoAmI(){
+  const box = $('whoami');
+  if(myName){
+    box.innerHTML = `กรรมการ: <b>${escapeHtml(myName)}</b><button id="switchName">เปลี่ยนชื่อ</button>`;
+    $('switchName').onclick = ()=>{ myName = null; renderWhoAmI(); };
+    return;
+  }
+  let rosterBtns = '';
+  judgeRoster.forEach(n=>{
+    rosterBtns += `<button type="button" data-name="${escapeHtml(n)}">${escapeHtml(n)}</button>`;
+  });
+  box.innerHTML = `
+    <div class="picker">
+      <div class="picker-label">คุณคือกรรมการคนไหน? แตะเลือกชื่อ</div>
+      <div class="picker-row">${rosterBtns}</div>
+      <div class="picker-custom">
+        <input type="text" id="customJudgeName" placeholder="หรือพิมพ์ชื่ออื่น...">
+        <button type="button" id="confirmNameBtn">ยืนยัน</button>
+      </div>
+    </div>
+  `;
+  box.querySelectorAll('.picker-row button').forEach(b=>{
+    b.onclick = ()=> selectJudgeName(b.dataset.name);
+  });
+  $('confirmNameBtn').onclick = ()=>{
+    const v = $('customJudgeName').value.trim();
+    if(v) selectJudgeName(v);
+  };
+  $('customJudgeName').onkeydown = (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); $('confirmNameBtn').click(); }
+  };
+}
+
+async function selectJudgeName(n){
+  if(!n) return;
+  myName = n;
+  localSet('bh_judge_name', n);
+  renderWhoAmI();
+  render();
+  if(!judgeRoster.includes(n)){
+    judgeRoster.push(n);
+    await fbSet('judgeRoster', judgeRoster);
+  }
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ---- Threshold ----
+$('thresholdNum').addEventListener('change', async ()=>{
+  let n = parseInt($('thresholdNum').value, 10);
+  if(isNaN(n) || n < 1) n = 1;
+  settings.threshold = n;
+  await fbSet('settings', settings);
+});
+
+// ---- Add player pair ----
+$('addBtn').onclick = async ()=>{
+  const team = $('newTeam').value.trim();
+  const n1 = $('newName1').value.trim();
+  const n2 = $('newName2').value.trim();
+  if(!team && !n1 && !n2) return;
+  const level = $('newLevel').value;
+  const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+  players.push({ id, team, name1: n1, name2: n2, level });
+  $('newTeam').value = '';
+  $('newName1').value = '';
+  $('newName2').value = '';
+  await fbSet('players', players);
+  render();
+};
+
+// ---- Judge roster management ----
+function renderJudgeTags(){
+  const wrap = $('judgeTags');
+  wrap.innerHTML = '';
+  judgeRoster.forEach(n=>{
+    const t = document.createElement('span');
+    t.className = 'jtag';
+    t.textContent = n;
+    wrap.appendChild(t);
+  });
+}
+$('addJudgeBtn').onclick = async ()=>{
+  const v = $('newJudgeName').value.trim();
+  if(!v || judgeRoster.includes(v)) return;
+  judgeRoster.push(v);
+  $('newJudgeName').value = '';
+  await fbSet('judgeRoster', judgeRoster);
+  renderJudgeTags();
+};
+
+// ---- Excel import ----
+function normalizeLevel(raw){
+  if(!raw) return 'S/N';
+  const norm = String(raw).toUpperCase().replace(/\s/g,'');
+  if(norm.includes('BG-') || norm.includes('BGลบ')) return 'BG-';
+  if(norm.includes('BG')) return 'BG';
+  return 'S/N';
+}
+function findCol(headerRow, opts){
+  for(let i=0;i<headerRow.length;i++){
+    const h = String(headerRow[i]||'').trim();
+    if(opts.some(o=>h.includes(o))) return i;
+  }
+  return -1;
+}
+$('fileInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type:'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'' });
+    if(!rows.length){ throw new Error('empty'); }
+    let startRow = 0;
+    let colTeam = -1, col1 = 0, col2 = 1, colLevel = 2;
+    const looksLikeHeader = rows[0].some(c => String(c).includes('ชื่อ') || String(c).toLowerCase().includes('มือ') || String(c).toLowerCase().includes('name') || String(c).includes('ทีม'));
+    if(looksLikeHeader){
+      startRow = 1;
+      const ct = findCol(rows[0], ['ทีม','team']);
+      const c1 = findCol(rows[0], ['คนที่1','คนที่ 1','ชื่อ1','ชื่อ 1']);
+      const c2 = findCol(rows[0], ['คนที่2','คนที่ 2','ชื่อ2','ชื่อ 2']);
+      const cl = findCol(rows[0], ['มือ','ระดับ','level']);
+      if(ct >= 0) colTeam = ct;
+      if(c1 >= 0) col1 = c1;
+      if(c2 >= 0) col2 = c2;
+      if(cl >= 0) colLevel = cl;
+    }
+    let added = 0;
+    const counts = {"BG-":0, "BG":0, "S/N":0};
+    for(let r = startRow; r < rows.length; r++){
+      const row = rows[r];
+      if(!row || row.every(c => String(c).trim()==='')) continue;
+      const team = colTeam >= 0 ? String(row[colTeam]||'').trim() : '';
+      const n1 = String(row[col1]||'').trim();
+      const n2 = String(row[col2]||'').trim();
+      if(!team && !n1 && !n2) continue;
+      const level = normalizeLevel(row[colLevel]);
+      const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7) + r;
+      players.push({ id, team, name1:n1, name2:n2, level });
+      counts[level] = (counts[level]||0) + 1;
+      added++;
+    }
+    await fbSet('players', players);
+    const summary = $('importSummary');
+    summary.style.display = 'block';
+    summary.textContent = `นำเข้า ${added} คู่ — BG- ${counts['BG-']}, BG ${counts['BG']}, S/N ${counts['S/N']}`;
+    render();
+  }catch(err){
+    const summary = $('importSummary');
+    summary.style.display = 'block';
+    summary.textContent = 'อ่านไฟล์ไม่สำเร็จ ตรวจสอบว่าเป็นไฟล์ .xlsx ที่ถูกต้อง';
+  }
+  e.target.value = '';
+});
+
+// ---- Level filter nav ----
+function renderLevelsNav(){
+  const nav = $('levelsNav');
+  nav.innerHTML = '';
+  const all = document.createElement('button');
+  all.textContent = 'ทั้งหมด';
+  all.className = activeLevel === 'ALL' ? 'active' : '';
+  all.onclick = ()=>{ activeLevel = 'ALL'; render(); };
+  nav.appendChild(all);
+  DEFAULT_LEVELS.forEach(lv=>{
+    const b = document.createElement('button');
+    b.textContent = lv;
+    b.className = activeLevel === lv ? 'active' : '';
+    b.onclick = ()=>{ activeLevel = lv; render(); };
+    nav.appendChild(b);
+  });
+}
+
+// ---- Vote logic ----
+function threshold(){ return settings.threshold || 3; }
+function tally(playerId){
+  const v = votes[playerId] || {};
+  let pass=0, fail=0;
+  Object.values(v).forEach(x=>{ if(x==='pass') pass++; else if(x==='fail') fail++; });
+  return {pass, fail};
+}
+function verdictFor(playerId){
+  const {pass, fail} = tally(playerId);
+  const need = threshold();
+  if(pass >= need) return 'pass';
+  if(fail >= need) return 'fail';
+  return 'pending';
+}
+
+async function castVote(playerId, val){
+  if(!myName) { window.scrollTo({top:0, behavior:'smooth'}); return; }
+  if(!votes[playerId]) votes[playerId] = {};
+  if(votes[playerId][myName] === val){
+    delete votes[playerId][myName];
+  }else{
+    votes[playerId][myName] = val;
+  }
+  await fbSet('votes', votes);
+  render();
+}
+
+async function deletePlayer(id){
+  players = players.filter(p=>p.id !== id);
+  delete votes[id];
+  await fbSet('players', players);
+  await fbSet('votes', votes);
+  render();
+}
+
+function pairName(p){
+  if(p.name1 && p.name2) return p.name1 + ' & ' + p.name2;
+  return p.name1 || p.name2 || '(ไม่มีชื่อ)';
+}
+function levelClass(level){
+  if(level === 'BG') return 'lvl-BG';
+  if(level === 'BG-') return 'lvl-BGM';
+  return 'lvl-SN';
+}
+
+async function savePlayerEdit(id, team, n1, n2, level){
+  const idx = players.findIndex(p=>p.id===id);
+  if(idx === -1) return;
+  players[idx] = { ...players[idx], team, name1:n1, name2:n2, level };
+  await fbSet('players', players);
+  editingId = null;
+  render();
+}
+
+let editingId = null;
+
+// ---- Render players ----
+function render(){
+  $('thresholdNum').value = settings.threshold || 3;
+  renderJudgeTags();
+  renderLevelsNav();
+  const list = $('playerList');
+  const filtered = activeLevel === 'ALL' ? players : players.filter(p=>p.level===activeLevel);
+  if(filtered.length === 0){
+    list.innerHTML = '<div class="empty">ยังไม่มีคู่ในรายการนี้<br>เพิ่มด้วยตนเองหรือนำเข้าจาก Excel ด้านบน</div>';
+    return;
+  }
+  list.innerHTML = '';
+  filtered.forEach(p=>{
+    const el = document.createElement('div');
+    el.className = 'player ' + levelClass(p.level);
+
+    if(editingId === p.id){
+      el.innerHTML = `
+        <div class="edit-form">
+          <input type="text" class="e-team" placeholder="ชื่อทีม" value="${escapeHtml(p.team||'')}">
+          <input type="text" class="e-name1" placeholder="ชื่อคนที่ 1" value="${escapeHtml(p.name1||'')}">
+          <input type="text" class="e-name2" placeholder="ชื่อคนที่ 2" value="${escapeHtml(p.name2||'')}">
+          <select class="e-level">
+            <option value="BG-" ${p.level==='BG-'?'selected':''}>BG-</option>
+            <option value="BG" ${p.level==='BG'?'selected':''}>BG</option>
+            <option value="S/N" ${p.level==='S/N'?'selected':''}>S/N</option>
+          </select>
+          <div class="edit-actions">
+            <button class="save-btn">บันทึก</button>
+            <button class="cancel-btn">ยกเลิก</button>
+          </div>
+        </div>
+      `;
+      el.querySelector('.save-btn').onclick = ()=>{
+        const team = el.querySelector('.e-team').value.trim();
+        const n1 = el.querySelector('.e-name1').value.trim();
+        const n2 = el.querySelector('.e-name2').value.trim();
+        const level = el.querySelector('.e-level').value;
+        savePlayerEdit(p.id, team, n1, n2, level);
+      };
+      el.querySelector('.cancel-btn').onclick = ()=>{ editingId = null; render(); };
+      list.appendChild(el);
+      return;
+    }
+
+    const v = votes[p.id] || {};
+    const verdict = verdictFor(p.id);
+    const {pass} = tally(p.id);
+    const need = threshold();
+
+    let judgesHtml = '';
+    const allJudgeNames = Array.from(new Set([...judgeRoster, ...Object.keys(v), myName].filter(Boolean)));
+    allJudgeNames.forEach(jn=>{
+      const val = v[jn];
+      const cls = val === 'pass' ? 'pass' : (val === 'fail' ? 'fail' : 'pending');
+      const label = val === 'pass' ? 'ผ่าน' : (val === 'fail' ? 'ไม่ผ่าน' : '—');
+      const meCls = jn === myName ? ' me' : '';
+      judgesHtml += `<div class="judge-chip ${cls}${meCls}"><span class="jname">${escapeHtml(jn)}</span><span class="jstate">${label}</span></div>`;
+    });
+
+    const verdictLabel = verdict === 'pass' ? `ผ่าน (${pass}/${need})` : (verdict === 'fail' ? 'ไม่ผ่าน' : `รอผล (${pass}/${need})`);
+    const teamHtml = p.team ? `<div class="team-label">${escapeHtml(p.team)}</div>` : '';
+
+    el.innerHTML = `
+      ${teamHtml}
+      <div class="player-top">
+        <div class="player-name">${escapeHtml(pairName(p))}</div>
+        <div class="level-badge">${p.level}</div>
+        <button class="edit-btn" title="แก้ไข">✎</button>
+        <button class="del-btn" title="ลบ">×</button>
+      </div>
+      <span class="verdict ${verdict}">${verdictLabel}</span>
+      <div class="mybtns">
+        <button class="pass ${v[myName]==='pass' ? 'on':''}" data-act="pass">ผ่าน</button>
+        <button class="fail ${v[myName]==='fail' ? 'on':''}" data-act="fail">ไม่ผ่าน</button>
+      </div>
+      <div class="judges">${judgesHtml}</div>
+    `;
+    el.querySelector('.del-btn').onclick = ()=> deletePlayer(p.id);
+    el.querySelector('.edit-btn').onclick = ()=>{ editingId = p.id; render(); };
+    el.querySelectorAll('.mybtns button').forEach(b=>{
+      b.onclick = ()=> castVote(p.id, b.dataset.act);
+    });
+    list.appendChild(el);
+  });
+}
+
+init();
+</script>
+</body>
+</html>
