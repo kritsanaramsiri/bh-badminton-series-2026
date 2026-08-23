@@ -271,7 +271,10 @@
 
 <div class="modal-backdrop" id="nameModal">
   <div class="modal">
-    <h3>คุณคือกรรมการคนไหน?</h3>
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <h3>คุณคือกรรมการคนไหน?</h3>
+      <button id="closeNameModal" style="background:none; border:none; font-size:20px; line-height:1; color:#9aa196; cursor:pointer; padding:0 0 0 10px;" title="ปิด">×</button>
+    </div>
     <p>เลือกชื่อ เพื่อให้ระบบจำไว้บนเครื่องนี้</p>
     <div class="name-opts" id="nameOpts"></div>
     <input type="text" id="customJudgeName" placeholder="หรือพิมพ์ชื่ออื่น...">
@@ -339,18 +342,24 @@ async function init(){
 }
 
 function showNameModal(){
-  const opts = $('nameOpts');
-  opts.innerHTML = '';
-  judgeRoster.forEach(n=>{
-    const b = document.createElement('button');
-    b.textContent = n;
-    b.onclick = ()=> selectJudgeName(n);
-    opts.appendChild(b);
-  });
+  try{
+    const opts = $('nameOpts');
+    opts.innerHTML = '';
+    judgeRoster.forEach(n=>{
+      const b = document.createElement('button');
+      b.textContent = n;
+      b.onclick = ()=> selectJudgeName(n);
+      opts.appendChild(b);
+    });
+  }catch(e){ console.error('showNameModal roster render failed', e); }
   $('nameModal').style.display = 'flex';
   $('confirmNameBtn').onclick = ()=>{
     const v = $('customJudgeName').value.trim();
     if(v) selectJudgeName(v);
+  };
+  $('closeNameModal').onclick = ()=>{
+    if(!myName) return; // must pick a name the first time
+    $('nameModal').style.display = 'none';
   };
 }
 async function selectJudgeName(n){
