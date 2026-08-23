@@ -127,7 +127,23 @@
     background:#eef2ea; color:var(--ink-soft); border:1px solid var(--line);
     white-space:nowrap;
   }
-  .del-btn{ background:none; border:none; color:#b3b8ac; font-size:18px; cursor:pointer; padding:2px 4px; line-height:1; }
+  /* level colour coding */
+  .player{ border-left:5px solid var(--line); }
+  .player.lvl-BG{ border-left-color:#c0392b; }
+  .player.lvl-BG .level-badge{ background:#fbe1de; color:#a3271a; border-color:#f0b8b1; }
+  .player.lvl-BGM{ border-left-color:#2f8f5b; }
+  .player.lvl-BGM .level-badge{ background:#e0f2e6; color:#20693f; border-color:#a9dcbc; }
+  .player.lvl-SN{ border-left-color:#c99a2e; }
+  .player.lvl-SN .level-badge{ background:#faf1dc; color:#8f6a15; border-color:#eed49b; }
+
+  .del-btn, .edit-btn{ background:none; border:none; color:#b3b8ac; font-size:16px; cursor:pointer; padding:2px 5px; line-height:1; }
+  .team-label{ font-size:11.5px; font-weight:700; color:var(--ink-soft); margin-bottom:2px; }
+  .edit-form{ display:flex; flex-direction:column; gap:6px; margin-top:6px; }
+  .edit-form input, .edit-form select{ font-size:14px; padding:8px 9px; }
+  .edit-actions{ display:flex; gap:8px; margin-top:2px; }
+  .edit-actions button{ flex:1; padding:8px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; }
+  .edit-actions .save-btn{ background:var(--court); color:#fff; border:none; }
+  .edit-actions .cancel-btn{ background:none; border:1px solid var(--line); color:var(--ink-soft); }
 
   .verdict{
     margin-top:8px; font-size:12.5px; font-weight:800; padding:6px 10px;
@@ -212,6 +228,9 @@
   <div class="panel">
     <h2>เพิ่มนักกีฬา (รายคู่)</h2>
     <div class="row">
+      <input type="text" id="newTeam" placeholder="ชื่อทีม">
+    </div>
+    <div class="row" style="margin-top:8px">
       <input type="text" id="newName1" placeholder="ชื่อคนที่ 1">
       <input type="text" id="newName2" placeholder="ชื่อคนที่ 2">
     </div>
@@ -228,7 +247,7 @@
   <div class="panel">
     <h2>นำเข้ารายชื่อจาก Excel</h2>
     <label class="file-label" id="fileLabel">
-      เลือกไฟล์ .xlsx — คอลัมน์: ชื่อนักกีฬาคนที่ 1 / คนที่ 2 / มือที่ลง
+      เลือกไฟล์ .xlsx — คอลัมน์: ชื่อทีม / ชื่อนักกีฬาคนที่ 1 / คนที่ 2 / มือที่ลง
       <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
     </label>
     <div class="import-summary" id="importSummary" style="display:none"></div>
@@ -366,12 +385,14 @@ $('thresholdNum').addEventListener('change', async ()=>{
 
 // ---- Add player pair ----
 $('addBtn').onclick = async ()=>{
+  const team = $('newTeam').value.trim();
   const n1 = $('newName1').value.trim();
   const n2 = $('newName2').value.trim();
-  if(!n1 && !n2) return;
+  if(!team && !n1 && !n2) return;
   const level = $('newLevel').value;
   const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
-  players.push({ id, name1: n1, name2: n2, level });
+  players.push({ id, team, name1: n1, name2: n2, level });
+  $('newTeam').value = '';
   $('newName1').value = '';
   $('newName2').value = '';
   await fbSet('players', players);
@@ -423,14 +444,15 @@ $('fileInput').addEventListener('change', async (e)=>{
     const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'' });
     if(!rows.length){ throw new Error('empty'); }
     let startRow = 0;
-    let col1 = 0, col2 = 1, colLevel = 2;
-    const headerGuess = findCol(rows[0], ['1']);
-    const looksLikeHeader = rows[0].some(c => String(c).includes('ชื่อ') || String(c).toLowerCase().includes('มือ') || String(c).toLowerCase().includes('name'));
+    let colTeam = -1, col1 = 0, col2 = 1, colLevel = 2;
+    const looksLikeHeader = rows[0].some(c => String(c).includes('ชื่อ') || String(c).toLowerCase().includes('มือ') || String(c).toLowerCase().includes('name') || String(c).includes('ทีม'));
     if(looksLikeHeader){
       startRow = 1;
+      const ct = findCol(rows[0], ['ทีม','team']);
       const c1 = findCol(rows[0], ['คนที่1','คนที่ 1','ชื่อ1','ชื่อ 1']);
       const c2 = findCol(rows[0], ['คนที่2','คนที่ 2','ชื่อ2','ชื่อ 2']);
       const cl = findCol(rows[0], ['มือ','ระดับ','level']);
+      if(ct >= 0) colTeam = ct;
       if(c1 >= 0) col1 = c1;
       if(c2 >= 0) col2 = c2;
       if(cl >= 0) colLevel = cl;
@@ -440,12 +462,13 @@ $('fileInput').addEventListener('change', async (e)=>{
     for(let r = startRow; r < rows.length; r++){
       const row = rows[r];
       if(!row || row.every(c => String(c).trim()==='')) continue;
+      const team = colTeam >= 0 ? String(row[colTeam]||'').trim() : '';
       const n1 = String(row[col1]||'').trim();
       const n2 = String(row[col2]||'').trim();
-      if(!n1 && !n2) continue;
+      if(!team && !n1 && !n2) continue;
       const level = normalizeLevel(row[colLevel]);
       const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7) + r;
-      players.push({ id, name1:n1, name2:n2, level });
+      players.push({ id, team, name1:n1, name2:n2, level });
       counts[level] = (counts[level]||0) + 1;
       added++;
     }
@@ -520,6 +543,22 @@ function pairName(p){
   if(p.name1 && p.name2) return p.name1 + ' & ' + p.name2;
   return p.name1 || p.name2 || '(ไม่มีชื่อ)';
 }
+function levelClass(level){
+  if(level === 'BG') return 'lvl-BG';
+  if(level === 'BG-') return 'lvl-BGM';
+  return 'lvl-SN';
+}
+
+async function savePlayerEdit(id, team, n1, n2, level){
+  const idx = players.findIndex(p=>p.id===id);
+  if(idx === -1) return;
+  players[idx] = { ...players[idx], team, name1:n1, name2:n2, level };
+  await fbSet('players', players);
+  editingId = null;
+  render();
+}
+
+let editingId = null;
 
 // ---- Render players ----
 function render(){
@@ -534,13 +573,42 @@ function render(){
   }
   list.innerHTML = '';
   filtered.forEach(p=>{
+    const el = document.createElement('div');
+    el.className = 'player ' + levelClass(p.level);
+
+    if(editingId === p.id){
+      el.innerHTML = `
+        <div class="edit-form">
+          <input type="text" class="e-team" placeholder="ชื่อทีม" value="${escapeHtml(p.team||'')}">
+          <input type="text" class="e-name1" placeholder="ชื่อคนที่ 1" value="${escapeHtml(p.name1||'')}">
+          <input type="text" class="e-name2" placeholder="ชื่อคนที่ 2" value="${escapeHtml(p.name2||'')}">
+          <select class="e-level">
+            <option value="BG-" ${p.level==='BG-'?'selected':''}>BG-</option>
+            <option value="BG" ${p.level==='BG'?'selected':''}>BG</option>
+            <option value="S/N" ${p.level==='S/N'?'selected':''}>S/N</option>
+          </select>
+          <div class="edit-actions">
+            <button class="save-btn">บันทึก</button>
+            <button class="cancel-btn">ยกเลิก</button>
+          </div>
+        </div>
+      `;
+      el.querySelector('.save-btn').onclick = ()=>{
+        const team = el.querySelector('.e-team').value.trim();
+        const n1 = el.querySelector('.e-name1').value.trim();
+        const n2 = el.querySelector('.e-name2').value.trim();
+        const level = el.querySelector('.e-level').value;
+        savePlayerEdit(p.id, team, n1, n2, level);
+      };
+      el.querySelector('.cancel-btn').onclick = ()=>{ editingId = null; render(); };
+      list.appendChild(el);
+      return;
+    }
+
     const v = votes[p.id] || {};
     const verdict = verdictFor(p.id);
     const {pass} = tally(p.id);
     const need = threshold();
-
-    const el = document.createElement('div');
-    el.className = 'player';
 
     let judgesHtml = '';
     const allJudgeNames = Array.from(new Set([...judgeRoster, ...Object.keys(v), myName].filter(Boolean)));
@@ -553,11 +621,14 @@ function render(){
     });
 
     const verdictLabel = verdict === 'pass' ? `ผ่าน (${pass}/${need})` : (verdict === 'fail' ? 'ไม่ผ่าน' : `รอผล (${pass}/${need})`);
+    const teamHtml = p.team ? `<div class="team-label">${escapeHtml(p.team)}</div>` : '';
 
     el.innerHTML = `
+      ${teamHtml}
       <div class="player-top">
         <div class="player-name">${escapeHtml(pairName(p))}</div>
         <div class="level-badge">${p.level}</div>
+        <button class="edit-btn" title="แก้ไข">✎</button>
         <button class="del-btn" title="ลบ">×</button>
       </div>
       <span class="verdict ${verdict}">${verdictLabel}</span>
@@ -568,6 +639,7 @@ function render(){
       <div class="judges">${judgesHtml}</div>
     `;
     el.querySelector('.del-btn').onclick = ()=> deletePlayer(p.id);
+    el.querySelector('.edit-btn').onclick = ()=>{ editingId = p.id; render(); };
     el.querySelectorAll('.mybtns button').forEach(b=>{
       b.onclick = ()=> castVote(p.id, b.dataset.act);
     });
