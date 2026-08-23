@@ -66,7 +66,7 @@
   h1{ margin:0; font-size:22px; font-weight:800; letter-spacing:-.01em; }
   .sub{ margin:4px 0 0; font-size:13px; color:#c9dbcd; }
   .whoami{
-    margin-top:14px; display:flex; align-items:center; gap:8px;
+    margin-top:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
     background:rgba(246,244,236,.1); border:1px solid rgba(246,244,236,.22);
     border-radius:10px; padding:9px 12px; font-size:13px;
   }
@@ -75,6 +75,19 @@
     margin-left:auto; background:none; border:1px solid rgba(246,244,236,.4);
     color:var(--court-line); font-size:11px; padding:4px 9px; border-radius:7px;
     cursor:pointer;
+  }
+  .picker{ width:100%; display:flex; flex-direction:column; gap:8px; }
+  .picker-label{ font-size:12.5px; color:#c9dbcd; }
+  .picker-row{ display:flex; gap:6px; flex-wrap:wrap; }
+  .picker-row button{
+    background:#fff; border:1px solid transparent; color:var(--ink);
+    font-size:13px; font-weight:700; padding:8px 12px; border-radius:8px; cursor:pointer;
+  }
+  .picker-custom{ display:flex; gap:6px; }
+  .picker-custom input{ flex:1; font-size:14px; padding:8px 10px; border-radius:8px; border:none; }
+  .picker-custom button{
+    background:#fff; color:var(--court); font-weight:800; border:none; border-radius:8px;
+    padding:8px 14px; cursor:pointer; font-size:13px;
   }
 
   main{ max-width:640px; margin:0 auto; padding:16px; }
@@ -177,21 +190,6 @@
   .mybtns button.fail.on{ background:var(--fail); color:#fff; border-color:var(--fail); }
 
   .empty{ text-align:center; padding:36px 16px; color:var(--ink-soft); font-size:13.5px; }
-  .modal-backdrop{
-    position:fixed; inset:0; background:rgba(20,37,28,.55); display:flex;
-    align-items:center; justify-content:center; padding:20px; z-index:20;
-  }
-  .modal{
-    background:#fff; border-radius:14px; padding:20px; max-width:340px; width:100%;
-    max-height:86vh; overflow-y:auto;
-  }
-  .modal h3{ margin:0 0 4px; font-size:16px; }
-  .modal p{ margin:0 0 14px; font-size:13px; color:var(--ink-soft); }
-  .name-opts{ display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
-  .name-opts button{
-    text-align:left; padding:11px 12px; border-radius:9px; border:1px solid var(--line);
-    background:#fbfbf8; font-size:14px; font-weight:700; color:var(--ink); cursor:pointer;
-  }
   .status-line{ font-size:11.5px; color:#9aa196; text-align:center; margin-top:10px; }
   .import-summary{ font-size:12.5px; margin-top:8px; padding:8px 10px; border-radius:8px; background:#eef2ea; color:var(--ink-soft); }
   .file-label{
@@ -269,20 +267,6 @@
   <p class="status-line" id="statusLine"></p>
 </main>
 
-<div class="modal-backdrop" id="nameModal">
-  <div class="modal">
-    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-      <h3>คุณคือกรรมการคนไหน?</h3>
-      <button id="closeNameModal" style="background:none; border:none; font-size:20px; line-height:1; color:#9aa196; cursor:pointer; padding:0 0 0 10px;" title="ปิด">×</button>
-    </div>
-    <p>เลือกชื่อ เพื่อให้ระบบจำไว้บนเครื่องนี้</p>
-    <div class="name-opts" id="nameOpts"></div>
-    <input type="text" id="customJudgeName" placeholder="หรือพิมพ์ชื่ออื่น...">
-    <div style="height:8px"></div>
-    <button class="primary" style="width:100%" id="confirmNameBtn">ยืนยัน</button>
-  </div>
-</div>
-
 <script>
 const DEFAULT_LEVELS = ["BG-","BG","S/N"];
 const DEFAULT_JUDGES = ["พี่ปอนด์","พี่โดม","พี่ปิงปอง","ฟอร์ด","ฟิวส์","ยูโร"];
@@ -323,11 +307,7 @@ function markUpdated(){
 
 async function init(){
   myName = localGet('bh_judge_name');
-  if(!myName){
-    showNameModal();
-  }else{
-    renderWhoAmI();
-  }
+  renderWhoAmI();
 
   fbListen('players', (val)=>{ players = val || []; render(); markUpdated(); });
   fbListen('votes', (val)=>{ votes = val || {}; render(); markUpdated(); });
@@ -335,47 +315,59 @@ async function init(){
   fbListen('judgeRoster', (val)=>{
     if(val && val.length){ judgeRoster = val; }
     else{ fbSet('judgeRoster', judgeRoster); }
+    // roster changed — refresh the picker too, in case it's showing
+    renderWhoAmI();
     render(); markUpdated();
   });
 
   render();
 }
 
-function showNameModal(){
-  try{
-    const opts = $('nameOpts');
-    opts.innerHTML = '';
-    judgeRoster.forEach(n=>{
-      const b = document.createElement('button');
-      b.textContent = n;
-      b.onclick = ()=> selectJudgeName(n);
-      opts.appendChild(b);
-    });
-  }catch(e){ console.error('showNameModal roster render failed', e); }
-  $('nameModal').style.display = 'flex';
+// Judge picker lives inline in the header bar — no overlay, so it can
+// never get stuck behind a stacking/click bug the way a fixed modal can.
+function renderWhoAmI(){
+  const box = $('whoami');
+  if(myName){
+    box.innerHTML = `กรรมการ: <b>${escapeHtml(myName)}</b><button id="switchName">เปลี่ยนชื่อ</button>`;
+    $('switchName').onclick = ()=>{ myName = null; renderWhoAmI(); };
+    return;
+  }
+  let rosterBtns = '';
+  judgeRoster.forEach(n=>{
+    rosterBtns += `<button type="button" data-name="${escapeHtml(n)}">${escapeHtml(n)}</button>`;
+  });
+  box.innerHTML = `
+    <div class="picker">
+      <div class="picker-label">คุณคือกรรมการคนไหน? แตะเลือกชื่อ</div>
+      <div class="picker-row">${rosterBtns}</div>
+      <div class="picker-custom">
+        <input type="text" id="customJudgeName" placeholder="หรือพิมพ์ชื่ออื่น...">
+        <button type="button" id="confirmNameBtn">ยืนยัน</button>
+      </div>
+    </div>
+  `;
+  box.querySelectorAll('.picker-row button').forEach(b=>{
+    b.onclick = ()=> selectJudgeName(b.dataset.name);
+  });
   $('confirmNameBtn').onclick = ()=>{
     const v = $('customJudgeName').value.trim();
     if(v) selectJudgeName(v);
   };
-  $('closeNameModal').onclick = ()=>{
-    if(!myName) return; // must pick a name the first time
-    $('nameModal').style.display = 'none';
+  $('customJudgeName').onkeydown = (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); $('confirmNameBtn').click(); }
   };
 }
+
 async function selectJudgeName(n){
+  if(!n) return;
   myName = n;
   localSet('bh_judge_name', n);
+  renderWhoAmI();
+  render();
   if(!judgeRoster.includes(n)){
     judgeRoster.push(n);
     await fbSet('judgeRoster', judgeRoster);
   }
-  $('nameModal').style.display = 'none';
-  renderWhoAmI();
-  render();
-}
-function renderWhoAmI(){
-  $('whoami').innerHTML = `กรรมการ: <b>${escapeHtml(myName)}</b><button id="switchName">เปลี่ยนชื่อ</button>`;
-  $('switchName').onclick = showNameModal;
 }
 
 function escapeHtml(s){
@@ -529,7 +521,7 @@ function verdictFor(playerId){
 }
 
 async function castVote(playerId, val){
-  if(!myName) { showNameModal(); return; }
+  if(!myName) { window.scrollTo({top:0, behavior:'smooth'}); return; }
   if(!votes[playerId]) votes[playerId] = {};
   if(votes[playerId][myName] === val){
     delete votes[playerId][myName];
