@@ -135,6 +135,10 @@
   }
   .player-top{ display:flex; align-items:center; gap:10px; }
   .player-name{ font-size:15.5px; font-weight:800; flex:1; line-height:1.35; }
+  .player-photo-full{
+    display:block; width:100%; max-height:260px; object-fit:contain;
+    border-radius:10px; border:1px solid var(--line); margin-top:8px; cursor:pointer; background:#fbfbf8;
+  }
   .level-badge{
     font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px;
     background:#eef2ea; color:var(--ink-soft); border:1px solid var(--line);
@@ -239,6 +243,14 @@
         <option value="S/N">S/N</option>
       </select>
       <button class="primary" id="addBtn">+ เพิ่มคู่นี้</button>
+    </div>
+    <div class="row" style="margin-top:8px; align-items:center">
+      <label class="file-label" id="newPhotoLabel" style="width:auto; flex:1;">
+        📎 แนบภาพข้อมูลนักกีฬา (ถ้ามี)
+        <input type="file" id="newPhotoInput" accept="image/*" style="display:none">
+      </label>
+      <img id="newPhotoPreview" style="display:none; height:52px; width:52px; object-fit:cover; border-radius:8px; border:1px solid var(--line);">
+      <button class="ghost" id="newPhotoClear" style="display:none">ลบรูป</button>
     </div>
   </div>
 
@@ -384,6 +396,52 @@ $('thresholdNum').addEventListener('change', async ()=>{
   await fbSet('settings', settings);
 });
 
+// ---- Photo attach: compress client-side before storing, so a phone photo
+// (often several MB) doesn't bloat the database or slow down every device.
+function compressImageToDataURL(file, maxDim=900, quality=0.72){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      img.onload = ()=>{
+        let { width, height } = img;
+        if(width > maxDim || height > maxDim){
+          if(width > height){ height = Math.round(height * maxDim / width); width = maxDim; }
+          else{ width = Math.round(width * maxDim / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+let newPhotoData = null;
+$('newPhotoInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    newPhotoData = await compressImageToDataURL(file);
+    $('newPhotoPreview').src = newPhotoData;
+    $('newPhotoPreview').style.display = 'inline-block';
+    $('newPhotoClear').style.display = 'inline-block';
+  }catch(err){
+    alert('แนบรูปไม่สำเร็จ ลองใหม่อีกครั้ง');
+  }
+});
+$('newPhotoClear').onclick = ()=>{
+  newPhotoData = null;
+  $('newPhotoInput').value = '';
+  $('newPhotoPreview').style.display = 'none';
+  $('newPhotoClear').style.display = 'none';
+};
+
 // ---- Add player pair ----
 $('addBtn').onclick = async ()=>{
   const team = $('newTeam').value.trim();
@@ -392,10 +450,14 @@ $('addBtn').onclick = async ()=>{
   if(!team && !n1 && !n2) return;
   const level = $('newLevel').value;
   const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
-  players.push({ id, team, name1: n1, name2: n2, level });
+  players.push({ id, team, name1: n1, name2: n2, level, photo: newPhotoData || null });
   $('newTeam').value = '';
   $('newName1').value = '';
   $('newName2').value = '';
+  newPhotoData = null;
+  $('newPhotoInput').value = '';
+  $('newPhotoPreview').style.display = 'none';
+  $('newPhotoClear').style.display = 'none';
   await fbSet('players', players);
   render();
 };
@@ -435,6 +497,13 @@ function findCol(headerRow, opts){
   }
   return -1;
 }
+// key used to recognise "the same pair" across re-uploads, so importing the
+// same file twice (or a file with overlapping names from a previous round)
+// doesn't create duplicates or wipe out votes already cast
+function pairKey(team, n1, n2){
+  const norm = s => String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+  return [norm(team), norm(n1), norm(n2)].join('|');
+}
 $('fileInput').addEventListener('change', async (e)=>{
   const file = e.target.files[0];
   if(!file) return;
@@ -458,7 +527,8 @@ $('fileInput').addEventListener('change', async (e)=>{
       if(c2 >= 0) col2 = c2;
       if(cl >= 0) colLevel = cl;
     }
-    let added = 0;
+    const existingKeys = new Set(players.map(p => pairKey(p.team, p.name1, p.name2)));
+    let added = 0, skipped = 0;
     const counts = {"BG-":0, "BG":0, "S/N":0};
     for(let r = startRow; r < rows.length; r++){
       const row = rows[r];
@@ -467,16 +537,21 @@ $('fileInput').addEventListener('change', async (e)=>{
       const n1 = String(row[col1]||'').trim();
       const n2 = String(row[col2]||'').trim();
       if(!team && !n1 && !n2) continue;
+      const key = pairKey(team, n1, n2);
+      if(existingKeys.has(key)){ skipped++; continue; } // already in the list — keep existing votes, don't duplicate
       const level = normalizeLevel(row[colLevel]);
       const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7) + r;
       players.push({ id, team, name1:n1, name2:n2, level });
+      existingKeys.add(key);
       counts[level] = (counts[level]||0) + 1;
       added++;
     }
     await fbSet('players', players);
     const summary = $('importSummary');
     summary.style.display = 'block';
-    summary.textContent = `นำเข้า ${added} คู่ — BG- ${counts['BG-']}, BG ${counts['BG']}, S/N ${counts['S/N']}`;
+    let msg = `นำเข้าใหม่ ${added} คู่ — BG- ${counts['BG-']}, BG ${counts['BG']}, S/N ${counts['S/N']}`;
+    if(skipped > 0) msg += ` · ข้าม ${skipped} คู่ที่มีอยู่แล้ว (ผลโหวตเดิมไม่หาย)`;
+    summary.textContent = msg;
     render();
   }catch(err){
     const summary = $('importSummary');
@@ -550,10 +625,10 @@ function levelClass(level){
   return 'lvl-SN';
 }
 
-async function savePlayerEdit(id, team, n1, n2, level){
+async function savePlayerEdit(id, team, n1, n2, level, photo){
   const idx = players.findIndex(p=>p.id===id);
   if(idx === -1) return;
-  players[idx] = { ...players[idx], team, name1:n1, name2:n2, level };
+  players[idx] = { ...players[idx], team, name1:n1, name2:n2, level, photo: photo !== undefined ? photo : players[idx].photo };
   await fbSet('players', players);
   editingId = null;
   render();
@@ -588,18 +663,44 @@ function render(){
             <option value="BG" ${p.level==='BG'?'selected':''}>BG</option>
             <option value="S/N" ${p.level==='S/N'?'selected':''}>S/N</option>
           </select>
+          <div class="row" style="align-items:center">
+            <label class="file-label" style="width:auto; flex:1;">
+              📎 ${p.photo ? 'เปลี่ยนรูป' : 'แนบภาพข้อมูลนักกีฬา'}
+              <input type="file" class="e-photo-input" accept="image/*" style="display:none">
+            </label>
+            <img class="e-photo-preview" src="${p.photo || ''}" style="${p.photo ? '' : 'display:none;'} height:52px; width:52px; object-fit:cover; border-radius:8px; border:1px solid var(--line);">
+            <button type="button" class="ghost e-photo-clear" style="${p.photo ? '' : 'display:none;'}">ลบรูป</button>
+          </div>
           <div class="edit-actions">
             <button class="save-btn">บันทึก</button>
             <button class="cancel-btn">ยกเลิก</button>
           </div>
         </div>
       `;
+      let editPhoto = p.photo || null;
+      const ePreview = el.querySelector('.e-photo-preview');
+      const eClear = el.querySelector('.e-photo-clear');
+      el.querySelector('.e-photo-input').addEventListener('change', async (ev)=>{
+        const file = ev.target.files[0];
+        if(!file) return;
+        try{
+          editPhoto = await compressImageToDataURL(file);
+          ePreview.src = editPhoto;
+          ePreview.style.display = 'inline-block';
+          eClear.style.display = 'inline-block';
+        }catch(err){ alert('แนบรูปไม่สำเร็จ ลองใหม่อีกครั้ง'); }
+      });
+      eClear.onclick = ()=>{
+        editPhoto = null;
+        ePreview.style.display = 'none';
+        eClear.style.display = 'none';
+      };
       el.querySelector('.save-btn').onclick = ()=>{
         const team = el.querySelector('.e-team').value.trim();
         const n1 = el.querySelector('.e-name1').value.trim();
         const n2 = el.querySelector('.e-name2').value.trim();
         const level = el.querySelector('.e-level').value;
-        savePlayerEdit(p.id, team, n1, n2, level);
+        savePlayerEdit(p.id, team, n1, n2, level, editPhoto);
       };
       el.querySelector('.cancel-btn').onclick = ()=>{ editingId = null; render(); };
       list.appendChild(el);
@@ -623,6 +724,7 @@ function render(){
 
     const verdictLabel = verdict === 'pass' ? `ผ่าน (${pass}/${need})` : (verdict === 'fail' ? 'ไม่ผ่าน' : `รอผล (${pass}/${need})`);
     const teamHtml = p.team ? `<div class="team-label">${escapeHtml(p.team)}</div>` : '';
+    const photoHtml = p.photo ? `<img class="player-photo-full" src="${p.photo}" title="แตะเพื่อดูรูปเต็ม">` : '';
 
     el.innerHTML = `
       ${teamHtml}
@@ -632,6 +734,7 @@ function render(){
         <button class="edit-btn" title="แก้ไข">✎</button>
         <button class="del-btn" title="ลบ">×</button>
       </div>
+      ${photoHtml}
       <span class="verdict ${verdict}">${verdictLabel}</span>
       <div class="mybtns">
         <button class="pass ${v[myName]==='pass' ? 'on':''}" data-act="pass">ผ่าน</button>
@@ -641,6 +744,8 @@ function render(){
     `;
     el.querySelector('.del-btn').onclick = ()=> deletePlayer(p.id);
     el.querySelector('.edit-btn').onclick = ()=>{ editingId = p.id; render(); };
+    const photoEl = el.querySelector('.player-photo-full');
+    if(photoEl){ photoEl.onclick = ()=> window.open(p.photo, '_blank'); }
     el.querySelectorAll('.mybtns button').forEach(b=>{
       b.onclick = ()=> castVote(p.id, b.dataset.act);
     });
