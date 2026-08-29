@@ -64,6 +64,7 @@
     color:#bcd7c4; font-weight:700; margin:0 0 6px;
   }
   h1{ margin:0; font-size:22px; font-weight:800; letter-spacing:-.01em; }
+  #headerPendingBadge .count-badge{ font-size:12px; padding:2px 9px; vertical-align:middle; }
   .sub{ margin:4px 0 0; font-size:13px; color:#c9dbcd; }
   .whoami{
     margin-top:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
@@ -128,6 +129,13 @@
     background:#fff; font-size:13px; font-weight:700; color:var(--ink-soft); cursor:pointer;
   }
   .levels-nav button.active{ background:var(--court); color:#fff; border-color:var(--court); }
+  .pending-filter-btn{ border-color:#eed49b !important; }
+  .pending-filter-btn.active{ background:var(--pending) !important; border-color:var(--pending) !important; }
+  .count-badge{
+    display:inline-block; background:var(--fail); color:#fff; font-size:11px; font-weight:800;
+    border-radius:999px; padding:1px 7px; margin-left:4px; vertical-align:middle;
+  }
+  .pending-filter-btn.active .count-badge{ background:rgba(255,255,255,.3); }
 
   .player{
     background:var(--card); border:1px solid var(--line); border-radius:14px;
@@ -208,7 +216,7 @@
 
 <header>
   <p class="eyebrow">BH Badminton Series 2026</p>
-  <h1>ประเมินมือนักแบด</h1>
+  <h1>ประเมินมือนักแบด <span id="headerPendingBadge"></span></h1>
   <p class="sub">โหวตร่วมกัน — เห็นผลแบบเรียลไทม์ พร้อมสำรองข้อมูลถาวร</p>
   <div class="whoami" id="whoami">
     <span>กำลังโหลด…</span>
@@ -561,7 +569,10 @@ $('fileInput').addEventListener('change', async (e)=>{
   e.target.value = '';
 });
 
-// ---- Level filter nav ----
+// ---- Level filter nav (+ pending-review filter) ----
+function pendingCount(){
+  return players.filter(p => verdictFor(p.id) === 'pending').length;
+}
 function renderLevelsNav(){
   const nav = $('levelsNav');
   nav.innerHTML = '';
@@ -570,6 +581,14 @@ function renderLevelsNav(){
   all.className = activeLevel === 'ALL' ? 'active' : '';
   all.onclick = ()=>{ activeLevel = 'ALL'; render(); };
   nav.appendChild(all);
+
+  const pending = pendingCount();
+  const pendingBtn = document.createElement('button');
+  pendingBtn.className = 'pending-filter-btn' + (activeLevel === 'PENDING' ? ' active' : '');
+  pendingBtn.innerHTML = `ยังไม่ได้ประเมิน${pending > 0 ? ` <span class="count-badge">${pending}</span>` : ''}`;
+  pendingBtn.onclick = ()=>{ activeLevel = 'PENDING'; render(); };
+  nav.appendChild(pendingBtn);
+
   DEFAULT_LEVELS.forEach(lv=>{
     const b = document.createElement('button');
     b.textContent = lv;
@@ -577,6 +596,14 @@ function renderLevelsNav(){
     b.onclick = ()=>{ activeLevel = lv; render(); };
     nav.appendChild(b);
   });
+
+  // reflect the pending count in the browser tab too — visible whenever the
+  // tab is open (including in the background), no permission needed
+  document.title = pending > 0 ? `(${pending}) ประเมินมือนักแบด` : 'ประเมินมือนักแบด';
+  const headerBadge = $('headerPendingBadge');
+  if(headerBadge){
+    headerBadge.innerHTML = pending > 0 ? `<span class="count-badge">${pending} ค้าง</span>` : '';
+  }
 }
 
 // ---- Vote logic ----
@@ -642,9 +669,15 @@ function render(){
   renderJudgeTags();
   renderLevelsNav();
   const list = $('playerList');
-  const filtered = activeLevel === 'ALL' ? players : players.filter(p=>p.level===activeLevel);
+  let filtered;
+  if(activeLevel === 'ALL') filtered = players;
+  else if(activeLevel === 'PENDING') filtered = players.filter(p => verdictFor(p.id) === 'pending');
+  else filtered = players.filter(p=>p.level===activeLevel);
   if(filtered.length === 0){
-    list.innerHTML = '<div class="empty">ยังไม่มีคู่ในรายการนี้<br>เพิ่มด้วยตนเองหรือนำเข้าจาก Excel ด้านบน</div>';
+    const emptyMsg = activeLevel === 'PENDING'
+      ? 'ไม่มีคู่ที่ค้างประเมินแล้ว 🎉'
+      : 'ยังไม่มีคู่ในรายการนี้<br>เพิ่มด้วยตนเองหรือนำเข้าจาก Excel ด้านบน';
+    list.innerHTML = `<div class="empty">${emptyMsg}</div>`;
     return;
   }
   list.innerHTML = '';
